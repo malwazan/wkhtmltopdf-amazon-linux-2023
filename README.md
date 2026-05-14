@@ -52,4 +52,93 @@ Installing manually on Amazon Linux 2023 process is same as commands specified i
 
 ## al2023-lambda-layer
 
-[TODO] ...
+A Lambda layer that packages wkhtmltopdf for use in AWS Lambda functions running on Amazon Linux 2023. The layer is built inside a Docker container to ensure the binaries and libraries match the Lambda runtime.
+
+### How the layer works
+
+Lambda layers are extracted into `/opt` at runtime. The layer is structured so everything wkhtmltopdf needs is self-contained under `/opt`:
+
+```
+/opt/
+  bin/
+    wkhtmltopdf        ← wrapper script (sets env vars, calls the binary)
+    wkhtmltopdf.bin    ← actual binary
+  lib/                 ← shared libraries not present in the Lambda AL2023 runtime
+  fonts/               ← DejaVu fonts (Lambda has no fonts by default)
+  fonts.conf           ← tells fontconfig to look in /opt/fonts
+```
+
+Your function calls `/opt/bin/wkhtmltopdf`. The wrapper sets `LD_LIBRARY_PATH=/opt/lib` so the binary finds its bundled libraries, and `FONTCONFIG_FILE=/opt/fonts.conf` so fonts resolve correctly.
+
+### How to build
+
+Run the build script — it builds the Docker image and extracts `layer.zip` to the current directory:
+
+```bash
+./build.sh
+```
+
+To output `layer.zip` to a specific directory:
+
+```bash
+./build.sh /path/to/output
+```
+
+Then upload `layer.zip` to AWS Lambda as a new layer version.
+
+### Notes
+
+- The AlmaLinux 9 RPM is used because it links against OpenSSL 3 (`libssl.so.3`), which matches AL2023. The Amazon Linux 2 RPM used OpenSSL 1.0 and will not work.
+- Only libraries missing from the Lambda AL2023 runtime are bundled — standard ones like `libc`, `libssl`, and `libz` are already present and excluded.
+- `wkhtmltoimage` is included in the RPM but not added to the layer by default. Uncomment the relevant section in the Dockerfile if you need it.
+- The layer is built for `x86_64`. To build for `arm64`, update the RPM URL in the Dockerfile.
+
+
+## How to find libraries required by wkhtmltopdf
+
+Well for me, I did following to find list of all required libs:
+
+```bash
+# Run al2023 locally
+docker run -it amazonlinux:2023 sh
+
+# Install wget
+dnf install -y wget
+
+# Download wkhtmltopdf rpm pkg
+wget https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6.1-3/wkhtmltox-0.12.6.1-3.almalinux9.$(uname -m).rpm
+
+# Try extracting...
+rpm -ivh wkhtmltox-0.12.6.1-3.almalinux9.$(uname -m).rpm
+
+# It will throw error listing all deps provided below.
+# Install them
+dnf install -y \
+    openssl \
+    fontconfig \
+    freetype \
+    libX11 \
+    libXext \
+    libXrender \
+    libjpeg-turbo \
+    libpng \
+    mesa-libGL \
+    xorg-x11-fonts-Type1 \
+    xorg-x11-fonts-75dpi \
+    dejavu-sans-fonts
+
+# List all dynamic deps using command
+ldd /usr/local/bin/wkhtmltopdf
+
+# It will list all requred deps of wkhtmltopdf.
+# Each line means: "wkhtmltopdf needs this .so file, and the system found it at this path".
+```
+
+Well here i chatgpt give me the list of libs that I needed to copy, because some libraries already present in lambda runtime (minimal set), so we exclude those and copy the rest.
+
+Otherwise pull lambda al2023 locally and see what's present already:
+```bash
+docker run --rm public.ecr.aws/lambda/provided:al2023 ls /lib64/
+``` 
+
+Or trail and error by deploying to lambda and see if wkhtmltopdf complains about any missing library.
