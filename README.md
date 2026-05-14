@@ -45,3 +45,11 @@ docker compose exec app wkhtmltopdf --version
 - The AlmaLinux 9 RPM is used because Amazon Linux 2023 is RHEL 9-based and does not have a dedicated wkhtmltopdf package.
 - The `uname -m` call in the Dockerfile makes the build architecture-aware (`x86_64` or `aarch64`), so it works on both Intel and Apple Silicon (M-series) Macs.
 - `BREF_BINARY_RESPONSES=1` is required when returning binary content (PDFs) through the Bref FPM runtime, otherwise the response will be corrupted.
+
+## Install on Amazon Linux 2023
+
+Installing manually on Amazon Linux 2023 process is same as commands specified in above Dockerfile. You could cleanup residue files after installation finishes. Rest shall be good. I am a bit lazy :(
+
+## al2023-lambda-layer
+
+[TODO] ...
