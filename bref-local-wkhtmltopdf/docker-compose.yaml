@@ -1,0 +1,18 @@
+version: "3.5"
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - '8000:8000'
+    volumes:
+      - .:/var/task
+    environment:
+      HANDLER: public/index.php
+      DOCUMENT_ROOT: public
+      BREF_RUNTIME: fpm
+      BREF_BINARY_RESPONSES: 1
+      WKHTMLTOPDF_PATH: /usr/local/bin/wkhtmltopdf
+      WKHTMLTOIMAGE_PATH: /usr/local/bin/wkhtmltoimage
